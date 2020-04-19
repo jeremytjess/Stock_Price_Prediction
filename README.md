@@ -1,7 +1,10 @@
 # Stock Prediction
 ## Overview
 This program uses a variety of supervised machine learning spproaches, including Regression and Neural Nets to generate predictive models for stock prices
-from historical data supplied by the Yahoo Finance API.
+from historical data supplied by the Yahoo Finance API.  
+
+## Installation 
+To install required libraries, run ```pip install -r requirements.txt```
 
 ### featurize.py
 Collects historical data from a specified time period into a Pandas DataFrame, adds additional time series features, splits data into 

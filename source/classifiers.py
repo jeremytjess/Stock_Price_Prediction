@@ -68,8 +68,9 @@ class LinearRegressor(Classifier):
         self.estimator_ = LinearRegression()
         self.param_grid_ = {}
 
+"""
 class LinearRegressionBagging(Classifier):
-    """Linear Regression w/ Bagging"""
+    Linear Regression w/ Bagging
 
     def __init__(self,n,d):
         self.estimator_ = BaggingRegressor(
@@ -80,14 +81,17 @@ class LinearRegressionBagging(Classifier):
             'n_estimators':np.arange(10,500,5),
             'max_features':np.arange(1,10,1)
         }
+"""
 
+"""
 class LinearRegressionBoosting(Classifier):
-    """Linear Regression w/ Boosting"""
+    Linear Regression w/ Boosting
     def __init__(self,n,d):
         self.estimator_ = AdaBoostRegressor(LinearRegression())
         self.param_grid_ = {
             'n_estimators':np.arange(20,500,5)
         }
+"""
 
 class KNN(Classifier):
     """K-Nearest Neighbor Classifier"""

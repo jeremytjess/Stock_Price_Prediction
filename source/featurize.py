@@ -100,7 +100,8 @@ class Featurizer(object):
         newdata = df['close'].to_frame()
 
         # shift data for specified time periods
-        for lag in [1,2,3,4,5,6,7,8,9,10]:
+        #for lag in [1,5,10,20,50,100]:
+        for lag in range(1,11):
             shift = lag
             shifted = df.shift(shift)
             shifted.columns = \
@@ -170,7 +171,7 @@ def main(tickers):
 
     # featurize data
     print("Adding Features ...")
-    data.featurize_historical_data(forward_lag=1)
+    data.featurize_historical_data()
 
     # data info
     n,d = data.X.shape
@@ -181,7 +182,7 @@ def main(tickers):
 
     # split data
     print("Splitting data into training/test ... ")
-    X_train,X_test,y_train,y_test = data.split_train_test(train_percent=0.6)
+    X_train,X_test,y_train,y_test = data.split_train_test()
 
     print()
 

@@ -17,7 +17,7 @@ warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
 from plotly.subplots import make_subplots
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import RandomizedSearchCV,GridSearchCV,KFold
+from sklearn.model_selection import RandomizedSearchCV,GridSearchCV,TimeSeriesSplit,KFold,cross_val_score
 from sklearn.ensemble import RandomForestRegressor,GradientBoostingRegressor,BaggingRegressor,AdaBoostRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler
@@ -228,18 +228,12 @@ def main(tickers):
     X_train,X_test = config.reduce_features(X_train,X_test,y_train)
     y_train,y_test = y_train.target.ravel(),y_test.target.ravel()
 
-
-    # validation split
-    val_index = int(X_test.shape[0]/2)
-
-    #X_val,y_val = X_test[:val_index],y_test[:val_index]
-    #X_test,y_test = X_test[val_index:],y_test[val_index:]
-
     # get necessary sizes
     n,d = X_train.shape
 
     # define cv
-    cv = KFold(n_splits=5)
+    cv_inner = TimeSeriesSplit(n_splits=5)
+    cv_outer = TimeSeriesSplit(n_splits=5)
 
     # get classifier names
     clf_strs = classifiers.CLASSIFIERS
@@ -262,20 +256,22 @@ def main(tickers):
         steps = [('Scaler',preprocessors.Scaler()),(clf_str,clf)]
         pipe,param_grid = make_pipeline_and_grid(steps)
 
-        #pipe.fit(X_train,y_train)
-
         # determine which CV to be used
         if clf_str in ['Dummy','LinearRegressor','KNN','lr_boost']:
             search = GridSearchCV(pipe,param_grid,
-                                  cv=5,
+                                  cv=cv_inner,
                                   refit=True,
                                   iid=False,
                                   scoring='neg_mean_absolute_error',
                                   return_train_score=True,
                                   n_jobs=-1)
+        #pipe_scores = cross_val_score(search,X_train,
+        #                              y_train,cv=cv_outer
+        #                             ,scoring='neg_mean_squared_error').mean()
+
         else:
             search = RandomizedSearchCV(pipe,param_grid,
-                                        cv=5,
+                                        cv=cv_inner,
                                         n_iter=20,
                                         iid=False,
                                         random_state=0,
@@ -285,14 +281,12 @@ def main(tickers):
                                         n_jobs=-1)
         # training
         print("Training Classifier ... ")
-        #search.fit(X_val,y_val)
         search.fit(X_train,y_train)
         results = search.cv_results_
 
         # make predictions
         print("Making Predictions ... ")
         y_pred = search.predict(X_test)
-        #y_pred = pipe.predict(X_test)
 
         # generate subplot traces
         subplot_traces = gen_subplot(

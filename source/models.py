@@ -25,7 +25,7 @@ from sklearn.neural_network import MLPRegressor
 # classes
 ######################################################################
 
-class Classifier(ABC):
+class Model(ABC):
     """Base class for classifier with hyper-parameter optimization.
     See sklearn.model_selection._search.
 
@@ -54,14 +54,14 @@ class Classifier(ABC):
         self.estimator_ = None
         self.param_grid_ = None
 
-class Dummy(Classifier):
+class Dummy(Model):
     """A Dummy classifier."""
 
     def __init__(self,n,d):
         self.estimator_ = DummyClassifier(strategy='stratified')
         self.param_grid_ = {}
 
-class LinearRegressor(Classifier):
+class LinearRegressor(Model):
     """Linear Regression Classifier"""
 
     def __init__(self,n,d):
@@ -69,7 +69,7 @@ class LinearRegressor(Classifier):
         self.param_grid_ = {}
 
 """
-class LinearRegressionBagging(Classifier):
+class LinearRegressionBagging(Model):
     Linear Regression w/ Bagging
 
     def __init__(self,n,d):
@@ -84,7 +84,7 @@ class LinearRegressionBagging(Classifier):
 """
 
 """
-class LinearRegressionBoosting(Classifier):
+class LinearRegressionBoosting(Model):
     Linear Regression w/ Boosting
     def __init__(self,n,d):
         self.estimator_ = AdaBoostRegressor(LinearRegression())
@@ -93,7 +93,7 @@ class LinearRegressionBoosting(Classifier):
         }
 """
 
-class KNN(Classifier):
+class KNN(Model):
     """K-Nearest Neighbor Classifier"""
     def __init__(self,n,d):
         self.estimator_ = KNeighborsRegressor()
@@ -102,7 +102,7 @@ class KNN(Classifier):
             'weights':['distance','uniform']
         }
 
-class GradientBoosting(Classifier):
+class GradientBoosting(Model):
     """Gradient Boosting Classifier"""
     def __init__(self,n,d):
         self.estimator_ = GradientBoostingRegressor()
@@ -111,7 +111,7 @@ class GradientBoosting(Classifier):
             'max_features':np.arange(1,10,1)
         }
 
-class NeuralNet(Classifier):
+class NeuralNet(Model):
     """Neural Net"""
     def __init__(self,n,d):
         self.estimator_ = MLPRegressor(
@@ -125,7 +125,7 @@ class NeuralNet(Classifier):
         }
 
 """
-class LinearSVM(Classifier):
+class LinearSVM(Model):
     A SVM classifier.
 
     def __init__(self, n, d):
@@ -133,7 +133,7 @@ class LinearSVM(Classifier):
         self.param_grid_ = {'C': np.logspace(-3, 3, 7)}
 
 
-class RbfSVM(Classifier):
+class RbfSVM(Model):
     A SVM classifier.
 
     def __init__(self, n, d):
@@ -146,4 +146,4 @@ class RbfSVM(Classifier):
 # globals
 ######################################################################
 
-CLASSIFIERS = [c.__name__ for c in Classifier.__subclasses__()]
+MODELS = [c.__name__ for c in Model.__subclasses__()]

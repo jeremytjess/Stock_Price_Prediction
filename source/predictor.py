@@ -9,7 +9,7 @@ import argparse
 import os
 import sys
 import config
-import classifiers
+import models
 import preprocessors
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -105,6 +105,25 @@ def make_pipeline_and_grid(steps) :
 def gen_subplot(train_index,test_index,y_train,y_test,y_pred,legend=False):
     """ generates subplot for a single model
 
+        Parameters
+        -----------
+        train_index: Series
+                training data dates
+        test_index: Series
+            test data dates
+        y_train: list
+            training labels
+        y_test: list
+            test labels
+        y_pred: list
+            predicted labels
+        legend: bool
+            indicates whether to include legend in plot
+
+        Returns
+        -------
+        traces: list
+            list of traces for subplot
     """
     traces = [
             go.Scatter(
@@ -137,21 +156,15 @@ def gen_subplot(train_index,test_index,y_train,y_test,y_pred,legend=False):
     return traces
 
 
-def plot_results(traces,clf_strs,ticker):
-        #train_index,test_index,y_train,y_test,y_pred,clf_strs):
+def plot_results(traces,model_strs,ticker):
+        #train_index,test_index,y_train,y_test,y_pred,model_strs):
     """ Plots results of various models
 
         Parameters
         ----------
-        train_index: Series
-            training data dates
-        test_index: Series
-            test data dates
-        y_train: list
-            training labels
-        y_test: list
-            test labels
-        clf_strs:
+        traces: list
+            list of subplot traces
+        model_strs:
             Model names
 
         Returns
@@ -160,7 +173,7 @@ def plot_results(traces,clf_strs,ticker):
             figure with subplot for each model
     """
     # gather plot info
-    clf_count = len(clf_strs)
+    clf_count = len(model_strs)
     rows = (clf_count//3 + 1)
     cols = 3
     cur_col = 1
@@ -168,7 +181,7 @@ def plot_results(traces,clf_strs,ticker):
 
     # figure
     fig = make_subplots(
-        subplot_titles=[clf_str for clf_str in clf_strs],
+        subplot_titles=[model_str for model_str in model_strs],
         rows=rows,
         cols=cols
     )
@@ -219,10 +232,6 @@ def main(tickers):
     y_train = pd.read_csv(LABELS_TRAIN_FILENAME).set_index('date')
     y_test = pd.read_csv(LABELS_TEST_FILENAME).set_index('date')
 
-    # make validation dataset
-
-
-
     # reduce number of features
     # NOTE: want to add this step to pipeline
     X_train,X_test = config.reduce_features(X_train,X_test,y_train)
@@ -236,7 +245,7 @@ def main(tickers):
     cv_outer = TimeSeriesSplit(n_splits=5)
 
     # get classifier names
-    clf_strs = classifiers.CLASSIFIERS
+    model_strs = models.MODELS
 
     # scoring dct to track performance
     scores = {}
@@ -245,19 +254,19 @@ def main(tickers):
     plot_traces = []
     legend=True
 
-    # run all classifiers on dataset
-    for clf_str in clf_strs:
-        print("\nclf = ",clf_str)
+    # run all models on dataset
+    for model_str in model_strs:
+        print("\nmodel = ",model_str)
 
         dct = {}
 
         # define pipeline
-        clf = getattr(classifiers, clf_str)(n,d)
-        steps = [('Scaler',preprocessors.Scaler()),(clf_str,clf)]
+        clf = getattr(models, model_str)(n,d)
+        steps = [('Scaler',preprocessors.Scaler()),(model_str,model)]
         pipe,param_grid = make_pipeline_and_grid(steps)
 
         # determine which CV to be used
-        if clf_str in ['Dummy','LinearRegressor','KNN','lr_boost']:
+        if model_str in ['Dummy','LinearRegressor','KNN','lr_boost']:
             search = GridSearchCV(pipe,param_grid,
                                   cv=cv_inner,
                                   refit=True,
@@ -280,7 +289,7 @@ def main(tickers):
                                         return_train_score=True,
                                         n_jobs=-1)
         # training
-        print("Training Classifier ... ")
+        print("Training Model ... ")
         search.fit(X_train,y_train)
         results = search.cv_results_
 
@@ -310,7 +319,7 @@ def main(tickers):
         dct['difference'] = dct['test_mar'] - dct['train_mar']
 
         # update scores dict
-        scores[clf_str] = dct
+        scores[model_str] = dct
 
     # Display results
     scores_df = pd.DataFrame.from_dict(scores,orient='index')
@@ -320,9 +329,8 @@ def main(tickers):
 
     # plot results
     print("Plotting Results ... ")
-    fig = plot_results(plot_traces,clf_strs,tickers[0])
+    fig = plot_results(plot_traces,model_strs,tickers[0])
     fig.show()
-
 
 if __name__ == '__main__':
     main(sys.argv[1:])

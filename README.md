@@ -6,6 +6,8 @@ from historical data supplied by the Yahoo Finance API.
 ## Installation 
 To install required libraries, run ```pip install -r requirements.txt```
 
+## Files
+
 ### featurize.py
 Collects historical data from a specified time period into a Pandas DataFrame, adds additional time series features, splits data into 
 train/test sets, and saves the results into the *data/* directory. Additional features include:

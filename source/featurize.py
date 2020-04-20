@@ -121,7 +121,7 @@ class Featurizer(object):
 
 def main(argv):
 
-    if len(argv) != 3:
+    if len(argv) < 3:
         print("Must be in format: python featurize.py  <TICKER> <FORWARD_LAG>")
         exit(0)
     elif not int(argv[2]):
@@ -131,8 +131,13 @@ def main(argv):
     # relevant variables
     ticker = argv[1]
     forward_lag = int(argv[2])
-    start_date = dt(2000,1,1)
-    end_date = dt.now()
+
+    if len(argv) > 3:
+        start_date = dt.strptime(argv[3],'%Y-%m-%d')
+        end_date = dt.strptime(argv[4],'%Y-%m-%d')
+    else:
+        start_date = dt(2000,1,1)
+        end_date = dt.now()
 
     # display relevant information
     print("Ticker: ",ticker)

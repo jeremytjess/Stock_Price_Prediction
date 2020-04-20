@@ -321,8 +321,6 @@ def main(argv):
     plot_traces = []
     legend=True
 
-
-    model_strs = model_strs[:2]
     # run all models on dataset
     for model_str in model_strs:
         print("\nmodel = ",model_str)

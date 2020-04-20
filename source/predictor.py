@@ -321,6 +321,9 @@ def main(argv):
     plot_traces = []
     legend=True
 
+    # best model
+    best_model = None
+
     # run all models on dataset
     for model_str in model_strs:
         print("\nmodel = ",model_str)
@@ -329,11 +332,12 @@ def main(argv):
 
         # define pipeline
         model = getattr(models, model_str)(n,d)
+
         steps = [('Scaler',preprocessors.Scaler()),(model_str,model)]
         pipe,param_grid = make_pipeline_and_grid(steps)
 
         # determine which CV to be used
-        if model_str in ['Dummy','LinearRegressor','KNN','lr_boost']:
+        if model_str in ['linearSVR','Dummy','LinearRegressor','KNN','lr_boost','LSTMRegressor']:
             search = GridSearchCV(pipe,param_grid,
                                   cv=cv_inner,
                                   refit='mean_absolute_error',
@@ -341,9 +345,6 @@ def main(argv):
                                   scoring=METRICS,
                                   return_train_score=True,
                                   n_jobs=-1)
-        #pipe_scores = cross_val_score(search,X_train,
-        #                              y_train,cv=cv_outer
-        #                             ,scoring='neg_mean_squared_error').mean()
 
         else:
             search = RandomizedSearchCV(pipe,param_grid,
@@ -355,10 +356,12 @@ def main(argv):
                                         scoring=METRICS,
                                         return_train_score=True,
                                         n_jobs=-1)
+
         # training
         print("Training Model ... ")
         search.fit(X_train,y_train)
         results = search.cv_results_
+        print("Best Parameters: ",search.best_params_)
 
         # make predictions
         print("Making Predictions ... ")
@@ -411,8 +414,8 @@ def main(argv):
 
     # plot results
     print("Plotting Results ... ")
-    #fig = plot_results(plot_traces,model_strs,ticker)
-    #fig.show()
+    fig = plot_results(plot_traces,model_strs,ticker)
+    fig.show()
 
     print()
 

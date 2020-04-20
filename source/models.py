@@ -12,13 +12,31 @@ import numpy as np
 
 # scikit-learn libraries
 from sklearn.dummy import DummyClassifier
-from sklearn.svm import LinearSVC, SVC
+from sklearn.svm import LinearSVC, SVC,SVR
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import RandomizedSearchCV,GridSearchCV
 from sklearn.ensemble import RandomForestRegressor,GradientBoostingRegressor,BaggingRegressor,AdaBoostRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neural_network import MLPRegressor
+
+from keras.wrappers.scikit_learn import KerasRegressor
+from keras.models import Sequential
+from keras.layers import Dense,LSTM
+
+
+######################################################################
+# sklearn model wrapper
+######################################################################
+def create_LSTM_model(input_dim,
+                      optimizer='adagrad'):
+    """creates sklearn model from Keras LSTM"""
+    model = Sequential()
+    model.add(LSTM(units=50,return_sequences=True,input_shape=input_dim))
+    model.add(LSTM(units=50))
+    model.add(Dense(1))
+    model.compile(loss='mean_squared_error',optimizer=optimizer)
+    return model
 
 
 ######################################################################
@@ -65,12 +83,11 @@ class LinearRegressor(Model):
     """Linear Regression Classifier"""
 
     def __init__(self,n,d):
-        self.estimator_ = LinearRegression()
+        self.estimator_ = LinearRegression(fit_intercept=True)
         self.param_grid_ = {}
 
-"""
 class LinearRegressionBagging(Model):
-    Linear Regression w/ Bagging
+    """Linear Regression w/ Bagging"""
 
     def __init__(self,n,d):
         self.estimator_ = BaggingRegressor(
@@ -81,20 +98,18 @@ class LinearRegressionBagging(Model):
             'n_estimators':np.arange(10,500,5),
             'max_features':np.arange(1,10,1)
         }
-"""
 
-"""
 class LinearRegressionBoosting(Model):
-    Linear Regression w/ Boosting
+    """Linear Regression w/ Boosting"""
     def __init__(self,n,d):
         self.estimator_ = AdaBoostRegressor(LinearRegression())
         self.param_grid_ = {
             'n_estimators':np.arange(20,500,5)
         }
-"""
 
+"""
 class KNN(Model):
-    """K-Nearest Neighbor Classifier"""
+    K-Nearest Neighbor Classifier
     def __init__(self,n,d):
         self.estimator_ = KNeighborsRegressor()
         self.param_grid_ = {
@@ -103,8 +118,7 @@ class KNN(Model):
         }
 
 class GradientBoosting(Model):
-    """
-    Gradient Boosting Classifier"""
+    Gradient Boosting Classifier
     def __init__(self,n,d):
         self.estimator_ = GradientBoostingRegressor()
         self.param_grid_ = {
@@ -112,20 +126,44 @@ class GradientBoosting(Model):
             'max_features':np.arange(1,10,1)
         }
 
+# need to fix this one
 class NeuralNet(Model):
-    """Neural Net"""
+    Neural Net
     def __init__(self,n,d):
         self.estimator_ = MLPRegressor(
                             max_iter=5000,
                             learning_rate = 'adaptive',
-                            solver='sgd',
+                            solver='adam',
+                            random_state=1234
         )
         self.param_grid_ = {
             'hidden_layer_sizes':[(x,) for x in np.arange(1,50,1)],
             'activation':['logistic','relu']
         }
+"""
+
+class linearSVR(Model):
+    """SVR models"""
+    def __init__(self,n,d):
+        self.estimator_ = SVR(gamma='scale',kernel='linear')
+        self.param_grid_ = {
+            'C':[1,5,10,100]
+        }
 
 """
+class LSTMRegressor(Model):
+    LSTM
+    def __init__(self,n,d):
+        self.estimator_ = KerasRegressor(
+            build_fn=create_LSTM_model,
+            input_dim=(1,d)
+        )
+        self.param_grid_ = {
+            'optimizer':['adam','rmsprop'],
+            'epochs':[1,5,10],
+            'batch_size':[1,5,10,20]
+        }
+
 class LinearSVM(Model):
     A SVM classifier.
 

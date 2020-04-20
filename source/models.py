@@ -103,7 +103,8 @@ class KNN(Model):
         }
 
 class GradientBoosting(Model):
-    """Gradient Boosting Classifier"""
+    """
+    Gradient Boosting Classifier"""
     def __init__(self,n,d):
         self.estimator_ = GradientBoostingRegressor()
         self.param_grid_ = {

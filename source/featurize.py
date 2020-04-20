@@ -5,12 +5,10 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
-import os
 import sys
 import config
 
 import pandas as pd
-import numpy as np
 
 from datetime import datetime as dt
 import pandas_datareader as web
@@ -19,8 +17,8 @@ import pandas_datareader as web
 # featurizer class for transforming raw data into feature matrix
 class Featurizer(object):
 
-    def __init__(self,tickers):
-        self.tickers = tickers
+    def __init__(self,ticker):
+        self.ticker = ticker
         self.raw_df = None
         self.feature_df = None
         self.X = None
@@ -43,14 +41,11 @@ class Featurizer(object):
         """
         df = pd.DataFrame()
 
-	# gather raw data
-        for tic in self.tickers:
-            tic_df = web.DataReader(tic,'yahoo',start,end)\
-                [['Open','High','Low','Adj Close','Volume']].reset_index()
-            tic_df.columns = [col.lower() for col in tic_df.columns]
-            #tic_df['ticker'] = tic
-            tic_df.set_index('date',inplace=True)
-            df = pd.concat([df,tic_df],axis=0)
+    	# gather raw data
+        df = web.DataReader(self.ticker,'yahoo',start,end)\
+            [['Open','High','Low','Adj Close','Volume']].reset_index()
+        df.columns = [col.lower() for col in df.columns]
+        df.set_index('date',inplace=True)
 
         # use adjusted close for simplicity
         df['close'] = df['adj close']
@@ -62,9 +57,7 @@ class Featurizer(object):
         """ Transform historical stock price data into
             feature matrix
 
-            Parameters
-            __________
-            forward_lag: int
+            Parameters __________ forward_lag: int
                 amount of days to generate prediction
 
             Returns
@@ -120,58 +113,52 @@ class Featurizer(object):
 
         return self.feature_df
 
-    def split_train_test(self,train_percent=0.7):
-        """ splits data up into train/test w/ labels
-
-            Parameters
-            ----------
-            train_percent: 0 < float < 1
-                percentage of data to be used for training
-
-            Returns
-            --------
-            X_train: DataFrame
-                training data
-            X_test: DataFrame
-                test data
-            y_train: Series
-                training labels
-            y_test: Series
-                test labels
-        """
-        train_size = int(self.X.shape[0]*train_percent)
-
-        X_train = self.X[0:train_size]
-        y_train = self.y[0:train_size]
-
-        X_test = self.X[train_size:]
-        y_test = self.y[train_size:]
-
-
-        return X_train,X_test,y_train,y_test
 
 
 #######################################################
 # main
 #######################################################
 
-def main(tickers):
+def main(argv):
+
+    if len(argv) != 3:
+        print("Must be in format: python featurize.py  <TICKER> <FORWARD_LAG>")
+        exit(0)
+    elif not int(argv[2]):
+        print("Must be in format: python featurize.py  <TICKER> <FORWARD_LAG>")
+        exit(0)
+
+    # relevant variables
+    ticker = argv[1]
+    forward_lag = int(argv[2])
+    start_date = dt(2000,1,1)
+    end_date = dt.now()
 
     # display relevant information
-    print("Tickers = ",tickers)
+    print("Ticker: ",ticker)
 
     print()
 
     # get historical data
     print("Generating Historical Data ... ")
-    data = Featurizer(tickers)
+    data = Featurizer(ticker)
     data.process_historical_data()
+
+    print()
+
+    # relevant stats
+    print(f"Start Date: {str(start_date)[:10]}")
+    print(f"Date: {str(end_date)[:10]}")
+    print(f"Total Number of Days: {data.raw_df.shape[0]}")
+    print(f"Prediction window: {forward_lag} days")
 
     print()
 
     # featurize data
     print("Adding Features ...")
-    data.featurize_historical_data()
+    data.featurize_historical_data(start=start_date,
+                                   end=end_date,
+                                   forward_lag=forward_lag)
 
     # data info
     n,d = data.X.shape
@@ -180,61 +167,33 @@ def main(tickers):
 
     print()
 
-    # split data
-    print("Splitting data into training/test ... ")
-    X_train,X_test,y_train,y_test = data.split_train_test()
-
-    print()
-
-    # display training data dimensions
-    n,d = X_train.shape
-    print("Number of training samples: ",n)
-    print("Number of training features: ",d)
-
-    print()
-
-    # display test data dimensions
-    n,d = X_test.shape
-    print("Number of test samples: ",n)
-    print("Number of test features: ",d)
-
-    print()
-
     # prefix for file names
-    PREFIX = config.gen_prefix(tickers)
+    PREFIX = config.gen_prefix(ticker,forward_lag)
 
     print("Writing to file ... ")
 
     # historical data
-    HISTORICAL_DATA_FILENAME = '../data/raw/'+PREFIX+'hist.csv'
+    RAW_PREFIX = PREFIX.replace(f'_{forward_lag}','')
+    HISTORICAL_DATA_FILENAME = f'../data/raw/{RAW_PREFIX}_hist.csv'
     data.raw_df.to_csv(HISTORICAL_DATA_FILENAME)
     print(f'\{HISTORICAL_DATA_FILENAME}')
 
+    X = data.X
+    y = data.y
+
     # training features
-    FEATURES_TRAIN_FILENAME = '../data/processed/'+PREFIX+'train_features.csv'
-    X_train.to_csv(FEATURES_TRAIN_FILENAME)
-    print(f'\{FEATURES_TRAIN_FILENAME}')
+    FEATURES_FILENAME = f'../data/processed/{PREFIX}_features.csv'
+    X.to_csv(FEATURES_FILENAME)
+    print(f'\{FEATURES_FILENAME}')
 
     # test features
-    FEATURES_TEST_FILENAME = '../data/processed/'+PREFIX+'test_features.csv'
-    X_test.to_csv(FEATURES_TEST_FILENAME)
-    print(f'\{FEATURES_TEST_FILENAME}')
-
-    # training labels
-    LABELS_TRAIN_FILENAME = '../data/processed/'+PREFIX+'train_labels.csv'
-    df_train_labels = pd.DataFrame(y_train)
-    df_train_labels.columns = ['target']
-    df_train_labels.to_csv(LABELS_TRAIN_FILENAME)
-    print(f'\{LABELS_TRAIN_FILENAME}')
-
-    # test labels
-    LABELS_TEST_FILENAME = '../data/processed/'+PREFIX+'test_labels.csv'
-    df_test_labels = pd.DataFrame(y_test)
-    df_test_labels.columns = ['target']
-    df_test_labels.to_csv(LABELS_TEST_FILENAME)
-    print(f'\{LABELS_TEST_FILENAME}')
+    LABELS_FILENAME = f'../data/processed/{PREFIX}_labels.csv'
+    df_labels = pd.DataFrame(y)
+    df_labels.columns = ['target']
+    y.to_csv(LABELS_FILENAME)
+    print(f'\{LABELS_FILENAME}')
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv)
 

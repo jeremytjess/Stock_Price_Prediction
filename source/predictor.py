@@ -5,8 +5,6 @@ import pandas as pd
 import numpy as np
 import warnings
 import joblib
-import argparse
-import os
 import sys
 import config
 import models
@@ -16,22 +14,19 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=DeprecationWarning)
 
 from plotly.subplots import make_subplots
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import RandomizedSearchCV,GridSearchCV,TimeSeriesSplit,KFold,cross_val_score
-from sklearn.ensemble import RandomForestRegressor,GradientBoostingRegressor,BaggingRegressor,AdaBoostRegressor
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.neural_network import MLPRegressor
+from sklearn.model_selection import RandomizedSearchCV,GridSearchCV,TimeSeriesSplit
 from sklearn.pipeline import Pipeline
-from sklearn import metrics
-from tqdm import tqdm
+from sklearn.metrics import make_scorer,explained_variance_score,mean_absolute_error,mean_squared_error,r2_score
 
-from datetime import datetime as dt
-import numpy as np
-import pandas as pd
-import pandas_datareader as web
-import plotly.offline as pyo
 import plotly.graph_objs as go
+
+###########################################
+# Global Vars
+###########################################
+METRICS = {'explained_variance_score':make_scorer(explained_variance_score),
+           'mean_absolute_error':make_scorer(mean_absolute_error),
+           'mean_squared_error':make_scorer(mean_squared_error),
+           'r2_score':make_scorer(r2_score)}
 
 ###########################################
 # HELPER FUNCTIONS
@@ -47,22 +42,62 @@ def load_model(name):
     return joblib.load(filename)
 
 # generates metrics and puts them in a pandas series
-def gen_matrics(y_test,y_pred):
-    standard_metrics = pd.Series()
+def gen_metrics(y_test,y_pred,dataset='test'):
+    standard_metrics = {}
 
-    for arg in vars(args):
-        val = getattr(args,arg)
-        if val:
-            standard_metrics.loc[arg] = val
-
-    standard_metrics.loc['Explained Variance'] = metrics.explained_variance_score(y_test, y_pred)
-    standard_metrics.loc['MAE'] = metrics.mean_absolute_error(y_test, y_pred)
-    standard_metrics.loc['MSE'] = metrics.mean_squared_error(y_test, y_pred)
-    standard_metrics.loc['MedAE'] = metrics.median_absolute_error(y_test, y_pred)
-    standard_metrics.loc['RSQ'] = metrics.r2_score(y_test, y_pred)
+    standard_metrics[f'{dataset}_explained_variance_score'] = explained_variance_score(y_test, y_pred)
+    standard_metrics[f'{dataset}_mean_absolute_error'] = mean_absolute_error(y_test, y_pred)
+    standard_metrics[f'{dataset}_mean_squared_error'] = mean_squared_error(y_test, y_pred)
+    standard_metrics[f'{dataset}_r2_score'] = r2_score(y_test,y_pred)
 
     return standard_metrics
 
+def gen_scorer(scoring_metrics):
+    """Generates dict with specified metrics for CV
+
+        Parameters
+        -----------
+        scoring_metrics: list
+            list of metrics to evaluate during CV
+
+        Returns
+        --------
+        scoring_dict: dict
+            dict with scoring metrics
+    """
+    scoring_dict = {}
+    for metric in scoring_metrics:
+        scoring_dict[metric] = make_scorer(metric)
+    return scoring_dict
+
+def split_train_test(X,y,train_percent=0.7):
+        """ splits data up into train/test w/ labels
+
+            Parameters
+            ----------
+            train_percent: 0 < float < 1
+                percentage of data to be used for training
+
+            Returns
+            --------
+            X_train: DataFrame
+                training data
+            X_test: DataFrame
+                test data
+            y_train: Series
+                training labels
+            y_test: Series
+                test labels
+        """
+        split_index = int(X.shape[0]*train_percent)
+
+        X_train = X[0:split_index]
+        y_train = y[0:split_index]
+
+        X_test = X[split_index:]
+        y_test = y[split_index:]
+
+        return X_train,X_test,y_train,y_test
 
 def make_pipeline_and_grid(steps) :
     """Make composite pipeline and parameter grid from list of estimators.
@@ -208,29 +243,60 @@ def plot_results(traces,model_strs,ticker):
 ##################################################
 #               MAIN                             #
 ##################################################
-def main(tickers):
+def main(argv):
     np.random.seed(1234)
 
+    if len(argv) != 3:
+        print("Must be in format: python featurize.py  <TICKER> <FORWARD_LAG>")
+        exit(0)
+    elif not int(argv[2]):
+        print("Must be in format: python featurize.py  <TICKER> <FORWARD_LAG>")
+        exit(0)
+
+    # set relevant vars
+    ticker = argv[1]
+    forward_lag  = int(argv[2])
+
     # display ticker info
-    print("Tickers = ",tickers)
+    print("Ticker = ",ticker)
+    print(f"Prediction Window = {forward_lag} days")
 
     print()
 
     # read data
     print("Reading data ... ")
-    PREFIX = config.gen_prefix(tickers)
+    PREFIX = config.gen_prefix(ticker,forward_lag)
 
     # relevant filenames
-    FEATURES_TRAIN_FILENAME = f'../data/processed/{PREFIX}train_features.csv'
-    FEATURES_TEST_FILENAME = f'../data/processed/{PREFIX}test_features.csv'
-    LABELS_TRAIN_FILENAME = f'../data/processed/{PREFIX}train_labels.csv'
-    LABELS_TEST_FILENAME = f'../data/processed/{PREFIX}test_labels.csv'
+    """
+    FEATURES_TRAIN_FILENAME = f'../data/processed/{PREFIX}_train_features.csv'
+    FEATURES_TEST_FILENAME = f'../data/processed/{PREFIX}_test_features.csv'
+    LABELS_TRAIN_FILENAME = f'../data/processed/{PREFIX}_train_labels.csv'
+    LABELS_TEST_FILENAME = f'../data/processed/{PREFIX}_test_labels.csv'
+    """
+
+    FEATURES_FILENAME = f'../data/processed/{PREFIX}_features.csv'
+    LABELS_FILENAME = f'../data/processed/{PREFIX}_labels.csv'
 
     # load data
+    X = pd.read_csv(FEATURES_FILENAME).set_index('date')
+    y = pd.read_csv(LABELS_FILENAME).set_index('date')
+
+    """
     X_train = pd.read_csv(FEATURES_TRAIN_FILENAME).set_index('date')
     X_test = pd.read_csv(FEATURES_TEST_FILENAME).set_index('date')
     y_train = pd.read_csv(LABELS_TRAIN_FILENAME).set_index('date')
     y_test = pd.read_csv(LABELS_TEST_FILENAME).set_index('date')
+    """
+
+    # Split into train and test data
+    X_train,X_test,y_train,y_test = split_train_test(X,y,train_percent=0.7)
+
+    # relevant dates
+    print(f"Training data range:\n\t {str(X_train.index[0])[:10]} to {str(X_train.index[-1])[:10]}")
+    print(f"Test data range:\n\t {str(X_test.index[0])[:10]} to {str(X_test.index[-1])[:10]}")
+
+    print()
 
     # reduce number of features
     # NOTE: want to add this step to pipeline
@@ -242,7 +308,8 @@ def main(tickers):
 
     # define cv
     cv_inner = TimeSeriesSplit(n_splits=5)
-    cv_outer = TimeSeriesSplit(n_splits=5)
+    #cv_outer = TimeSeriesSplit(n_splits=5)
+
 
     # get classifier names
     model_strs = models.MODELS
@@ -254,6 +321,8 @@ def main(tickers):
     plot_traces = []
     legend=True
 
+
+    model_strs = model_strs[:2]
     # run all models on dataset
     for model_str in model_strs:
         print("\nmodel = ",model_str)
@@ -261,7 +330,7 @@ def main(tickers):
         dct = {}
 
         # define pipeline
-        clf = getattr(models, model_str)(n,d)
+        model = getattr(models, model_str)(n,d)
         steps = [('Scaler',preprocessors.Scaler()),(model_str,model)]
         pipe,param_grid = make_pipeline_and_grid(steps)
 
@@ -269,9 +338,9 @@ def main(tickers):
         if model_str in ['Dummy','LinearRegressor','KNN','lr_boost']:
             search = GridSearchCV(pipe,param_grid,
                                   cv=cv_inner,
-                                  refit=True,
+                                  refit='mean_absolute_error',
                                   iid=False,
-                                  scoring='neg_mean_absolute_error',
+                                  scoring=METRICS,
                                   return_train_score=True,
                                   n_jobs=-1)
         #pipe_scores = cross_val_score(search,X_train,
@@ -284,8 +353,8 @@ def main(tickers):
                                         n_iter=20,
                                         iid=False,
                                         random_state=0,
-                                        refit=True,
-                                        scoring="neg_mean_absolute_error",
+                                        refit='mean_absolute_error',
+                                        scoring=METRICS,
                                         return_train_score=True,
                                         n_jobs=-1)
         # training
@@ -313,10 +382,12 @@ def main(tickers):
 
         # record metrics
         print("Recording Metrics ... \n")
-        test_mar = metrics.mean_absolute_error(y_test,y_pred)
-        dct['train_mar'] = -1*(results['mean_train_score'].mean())
-        dct['test_mar'] = test_mar
-        dct['difference'] = dct['test_mar'] - dct['train_mar']
+
+        for met in METRICS:
+            dct[f'train_{met}'] = results[f'mean_train_{met}'].mean()
+
+        test_scores = gen_metrics(y_test,y_pred)
+        dct.update(test_scores)
 
         # update scores dict
         scores[model_str] = dct
@@ -324,13 +395,34 @@ def main(tickers):
     # Display results
     scores_df = pd.DataFrame.from_dict(scores,orient='index')
     print(scores_df)
-    print("\nBest Classifier: ",scores_df.test_mar.idxmin())
-    print("Mean Absolute Error: ",scores_df.test_mar.min())
+    print("\nBest Model: ",scores_df.test_mean_squared_error.idxmin())
+    print("Mean Squared Error: ",scores_df.test_mean_squared_error.min())
+
+    print()
+
+    # show predictions
+    # NOTE: this is hacky, need to fix later
+    print(f'{forward_lag} day predictions')
+    RAW_PREFIX = PREFIX.replace(f'_{forward_lag}','')
+    raw_df = pd.read_csv(f'../data/raw/{RAW_PREFIX}_hist.csv').set_index('date')
+    prediction_dates = raw_df.index[-forward_lag:]
+    for i,date in enumerate(prediction_dates):
+        print(f'{date}: {y_pred[-forward_lag+i]:.2f}')
+
+    print()
 
     # plot results
     print("Plotting Results ... ")
-    fig = plot_results(plot_traces,model_strs,tickers[0])
-    fig.show()
+    #fig = plot_results(plot_traces,model_strs,ticker)
+    #fig.show()
+
+    print()
+
+    # log results
+    print("Saving Results ... ")
+    RESULTS_FILENAME = f'../data/results/{PREFIX}.csv'
+    scores_df.to_csv(RESULTS_FILENAME)
+    print(f'\{RESULTS_FILENAME}')
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv)

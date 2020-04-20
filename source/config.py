@@ -8,10 +8,8 @@ METRICS = ["accuracy", "auroc", "f1_score", "sensitivity", "specificity", "preci
 
 
 # generates prefix for filenames
-def gen_prefix(tickers):
-    prefix = ''
-    for tic in tickers:
-        prefix += f'{tic}_'
+def gen_prefix(ticker,lag):
+    prefix = f'{ticker}_{lag}'
     return prefix
 
 def reduce_features(X_train,X_test,y_train,count=50):
